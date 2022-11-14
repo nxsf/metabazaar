@@ -2,8 +2,8 @@ import { expect, use } from "chai";
 import { deployContract, MockProvider, solidity } from "ethereum-waffle";
 import ERC1155DummyABI from "../../waffle/ERC1155Dummy.json";
 import { Erc1155Dummy } from "../../waffle/types/Erc1155Dummy";
-import NFTSimpleListingABI from "../../waffle/NFTSimpleListing.json";
-import { NftSimpleListing } from "../../waffle/types/NftSimpleListing";
+import MetaStoreABI from "../../waffle/MetaStore.json";
+import { MetaStore } from "../../waffle/types/MetaStore";
 import { BigNumber, BigNumberish, BytesLike, ethers } from "ethers";
 import { keccak256 } from "@ethersproject/keccak256";
 
@@ -26,19 +26,15 @@ class ListingConfig {
 
 use(solidity);
 
-describe("NFTSimpleListing", async () => {
+describe("MetaStore", async () => {
   const [w0, w1, w2, app] = new MockProvider().getWallets();
 
   let erc1155Dummy: Erc1155Dummy;
-  let nftSimpleListing: NftSimpleListing;
+  let metaStore: MetaStore;
 
   before(async () => {
     erc1155Dummy = (await deployContract(w0, ERC1155DummyABI)) as Erc1155Dummy;
-
-    nftSimpleListing = (await deployContract(
-      w0,
-      NFTSimpleListingABI
-    )) as NftSimpleListing;
+    metaStore = (await deployContract(w0, MetaStoreABI)) as MetaStore;
   });
 
   describe("listing", () => {
@@ -57,7 +53,7 @@ describe("NFTSimpleListing", async () => {
             .connect(w1)
             .safeTransferFrom(
               w1.address,
-              nftSimpleListing.address,
+              metaStore.address,
               1,
               10,
               new ListingConfig(
@@ -65,14 +61,14 @@ describe("NFTSimpleListing", async () => {
                 app.address
               ).toBytes()
             )
-        ).to.be.revertedWith("NFTSimpleListing: app not eligible");
+        ).to.be.revertedWith("MetaStore: app not eligible");
       });
     });
 
     describe("when app is eligible", () => {
       before(async () => {
-        await expect(nftSimpleListing.connect(app).setAppFee(5))
-          .to.emit(nftSimpleListing, "SetAppFee")
+        await expect(metaStore.connect(app).setAppFee(5))
+          .to.emit(metaStore, "SetAppFee")
           .withArgs(app.address, 5);
       });
 
@@ -89,7 +85,7 @@ describe("NFTSimpleListing", async () => {
             .connect(w1)
             .safeTransferFrom(
               w1.address,
-              nftSimpleListing.address,
+              metaStore.address,
               1,
               10,
               new ListingConfig(
@@ -98,7 +94,7 @@ describe("NFTSimpleListing", async () => {
               ).toBytes()
             )
         )
-          .to.emit(nftSimpleListing, "List")
+          .to.emit(metaStore, "List")
           .withArgs(
             w1.address,
             [erc1155Dummy.address, 1],
@@ -109,7 +105,7 @@ describe("NFTSimpleListing", async () => {
             10
           );
 
-        const listing = await nftSimpleListing.getListing(_listingId);
+        const listing = await metaStore.getListing(_listingId);
 
         expect(listing.seller).to.be.eq(w1.address);
         expect(listing.token.contract_).to.be.eq(erc1155Dummy.address);
@@ -125,28 +121,28 @@ describe("NFTSimpleListing", async () => {
     describe("when value is less than required", () => {
       it("should fail", async () => {
         await expect(
-          nftSimpleListing
+          metaStore
             .connect(w2)
             .purchase(
               listingId(erc1155Dummy.address, 1, w1.address, app.address),
               2,
               { value: ethers.utils.parseEther("0.49") }
             )
-        ).to.be.revertedWith("NFTSimpleListing: invalid value");
+        ).to.be.revertedWith("MetaStore: invalid value");
       });
     });
 
     describe("when the eth value is greater than required", () => {
       it("should fail", async () => {
         await expect(
-          nftSimpleListing
+          metaStore
             .connect(w2)
             .purchase(
               listingId(erc1155Dummy.address, 1, w1.address, app.address),
               2,
               { value: ethers.utils.parseEther("0.51") }
             )
-        ).to.be.revertedWith("NFTSimpleListing: invalid value");
+        ).to.be.revertedWith("MetaStore: invalid value");
       });
     });
 
@@ -164,7 +160,7 @@ describe("NFTSimpleListing", async () => {
       const w2TokenBalanceBefore = await erc1155Dummy.balanceOf(w2.address, 1);
 
       await expect(
-        nftSimpleListing
+        metaStore
           .connect(w2)
           .purchase(
             listingId(erc1155Dummy.address, 1, w1.address, app.address),
@@ -172,7 +168,7 @@ describe("NFTSimpleListing", async () => {
             { value: ethers.utils.parseEther("0.5") }
           )
       )
-        .to.emit(nftSimpleListing, "Purchase")
+        .to.emit(metaStore, "Purchase")
         .withArgs(
           [erc1155Dummy.address, 1],
           listingId(erc1155Dummy.address, 1, w1.address, app.address),
@@ -212,14 +208,14 @@ describe("NFTSimpleListing", async () => {
     describe("when insufficient stock", () => {
       it("should fail", async () => {
         await expect(
-          nftSimpleListing
+          metaStore
             .connect(w2)
             .purchase(
               listingId(erc1155Dummy.address, 1, w1.address, app.address),
               49,
               { value: ethers.utils.parseEther("12.25") }
             )
-        ).to.be.revertedWith("NFTSimpleListing: insufficient stock");
+        ).to.be.revertedWith("MetaStore: insufficient stock");
       });
     });
   });
@@ -238,7 +234,7 @@ describe("NFTSimpleListing", async () => {
           .connect(w1)
           .safeTransferFrom(
             w1.address,
-            nftSimpleListing.address,
+            metaStore.address,
             1,
             10,
             new ListingConfig(
@@ -247,7 +243,7 @@ describe("NFTSimpleListing", async () => {
             ).toBytes()
           )
       )
-        .to.emit(nftSimpleListing, "Replenish")
+        .to.emit(metaStore, "Replenish")
         .withArgs(
           [erc1155Dummy.address, 1],
           app.address,
@@ -257,7 +253,7 @@ describe("NFTSimpleListing", async () => {
           10
         );
 
-      const listing = await nftSimpleListing.getListing(_listingId);
+      const listing = await metaStore.getListing(_listingId);
 
       expect(listing.stockSize).to.be.eq(18);
       expect(listing.price).to.be.eq(ethers.utils.parseEther("0.35"));
@@ -276,10 +272,8 @@ describe("NFTSimpleListing", async () => {
       // w1 is seller.
       const w1TokenBalanceBefore = await erc1155Dummy.balanceOf(w1.address, 1);
 
-      await expect(
-        nftSimpleListing.connect(w1).withdraw(_listingId, w1.address, 18)
-      )
-        .to.emit(nftSimpleListing, "Withdraw")
+      await expect(metaStore.connect(w1).withdraw(_listingId, w1.address, 18))
+        .to.emit(metaStore, "Withdraw")
         .withArgs(
           [erc1155Dummy.address, 1],
           app.address,
@@ -293,9 +287,7 @@ describe("NFTSimpleListing", async () => {
       const w1TokenBalanceAfter = await erc1155Dummy.balanceOf(w1.address, 1);
       expect(w1TokenBalanceAfter).to.be.eq(w1TokenBalanceBefore.add(18));
 
-      expect(
-        (await nftSimpleListing.getListing(_listingId)).stockSize
-      ).to.be.eq(0);
+      expect((await metaStore.getListing(_listingId)).stockSize).to.be.eq(0);
     });
   });
 });

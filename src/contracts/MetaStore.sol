@@ -9,8 +9,8 @@ import "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 
 /**
- * @title NFT Simple Listing
- * @author Vlad Faust <vladfaust.com>
+ * @title Meta Store
+ * @author Fancy Software <fancysoft.eth>
  *
  * Send ERC721 and ERC1155 tokens to this contract to list them for sale
  * (see {onERC721Received}, {onERC1155Received} and {onERC1155BatchReceived}).
@@ -23,7 +23,7 @@ import "@openzeppelin/contracts/utils/Context.sol";
  *
  * - Accept other tokens as payment (ERC20, ERC1155).
  */
-contract NFTSimpleListing is IERC721Receiver, IERC1155Receiver {
+contract MetaStore is IERC721Receiver, IERC1155Receiver {
     /// An ERC721 or ERC1155 token configuration.
     struct NFT {
         address contract_;
@@ -135,8 +135,8 @@ contract NFTSimpleListing is IERC721Receiver, IERC1155Receiver {
      * Emits {SetAppFee} event.
      */
     function setAppFee(uint8 fee) external {
-        require(appFee[msg.sender] == 0, "NFTSimpleListing: already set fee");
-        require(fee > 0, "NFTSimpleListing: fee must be non-zero");
+        require(appFee[msg.sender] == 0, "MetaStore: already set fee");
+        require(fee > 0, "MetaStore: fee must be non-zero");
         appFee[msg.sender] = fee;
         emit SetAppFee(msg.sender, fee);
     }
@@ -182,7 +182,7 @@ contract NFTSimpleListing is IERC721Receiver, IERC1155Receiver {
                 config.app
             );
         } else {
-            revert("NFTSimpleListing: ERC721 listing already exists");
+            revert("MetaStore: ERC721 listing already exists");
         }
 
         return IERC721Receiver.onERC721Received.selector;
@@ -284,16 +284,13 @@ contract NFTSimpleListing is IERC721Receiver, IERC1155Receiver {
     function purchase(bytes32 listingId, uint256 amount) external payable {
         Listing storage listing = _listings[listingId];
 
-        require(amount > 0, "NFTSimpleListing: amount must be positive");
+        require(amount > 0, "MetaStore: amount must be positive");
 
-        require(
-            listing.stockSize >= amount,
-            "NFTSimpleListing: insufficient stock"
-        );
+        require(listing.stockSize >= amount, "MetaStore: insufficient stock");
 
         require(
             listing.price * amount == msg.value,
-            "NFTSimpleListing: invalid value"
+            "MetaStore: invalid value"
         );
 
         unchecked {
@@ -389,15 +386,9 @@ contract NFTSimpleListing is IERC721Receiver, IERC1155Receiver {
     ) external {
         Listing storage listing = _listings[listingId];
 
-        require(
-            listing.seller == msg.sender,
-            "NFTSimpleListing: not the seller"
-        );
+        require(listing.seller == msg.sender, "MetaStore: not the seller");
 
-        require(
-            listing.stockSize >= amount,
-            "NFTSimpleListing: insufficient stock"
-        );
+        require(listing.stockSize >= amount, "MetaStore: insufficient stock");
 
         unchecked {
             listing.stockSize -= amount;
@@ -451,7 +442,7 @@ contract NFTSimpleListing is IERC721Receiver, IERC1155Receiver {
         returns (Listing memory)
     {
         Listing memory listing = _listings[listingId];
-        require(listing.app != address(0), "NFTSimpleListing: not found");
+        require(listing.app != address(0), "MetaStore: not found");
         return listing;
     }
 
@@ -476,8 +467,8 @@ contract NFTSimpleListing is IERC721Receiver, IERC1155Receiver {
         uint256 price,
         address payable app
     ) private {
-        require(seller != address(0), "NFTSimpleListing: zero seller");
-        require(appFee[app] > 0, "NFTSimpleListing: app not eligible");
+        require(seller != address(0), "MetaStore: zero seller");
+        require(appFee[app] > 0, "MetaStore: app not eligible");
 
         _listings[listingId].seller = seller;
         _listings[listingId].token.contract_ = tokenContract;

@@ -9,7 +9,7 @@ async function deploy(contractName, ...args) {
 }
 
 async function main() {
-  await deploy("NFTSimpleListing");
+  await deploy("MetaStore");
 }
 
 main()
