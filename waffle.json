@@ -1,0 +1,6 @@
+{
+  "compilerType": "native",
+  "sourceDirectory": "./src/contracts",
+  "outputDirectory": "./waffle",
+  "typechainEnabled": true
+}

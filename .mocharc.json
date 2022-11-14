@@ -1,0 +1,7 @@
+{
+  "spec": "test/**/*.test.{mjs,mts}",
+  "node-option": [
+    "experimental-specifier-resolution=node",
+    "loader=ts-node/esm"
+  ]
+}
