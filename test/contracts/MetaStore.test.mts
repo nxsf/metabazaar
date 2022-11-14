@@ -46,8 +46,10 @@ describe("MetaStore", async () => {
       await erc1155Dummy.safeTransferFrom(w0.address, w1.address, 1, 40, []);
     });
 
-    describe("requires app to be eligible", () => {
+    describe("when app is not enabled", () => {
       it("should fail", async () => {
+        expect(await metaStore.isAppEnabled(app.address)).to.be.false;
+
         await expect(
           erc1155Dummy
             .connect(w1)
@@ -61,18 +63,80 @@ describe("MetaStore", async () => {
                 app.address
               ).toBytes()
             )
-        ).to.be.revertedWith("MetaStore: app not eligible");
+        ).to.be.revertedWith("MetaStore: app not enabled");
+      });
+
+      after(async () => {
+        await expect(metaStore.setAppEnabled(app.address, true))
+          .to.emit(metaStore, "SetAppEnabled")
+          .withArgs(app.address, true);
+        expect(await metaStore.isAppEnabled(app.address)).to.be.true;
       });
     });
 
-    describe("when app is eligible", () => {
-      before(async () => {
+    describe("when app is not active", () => {
+      it("should fail", async () => {
+        expect(await metaStore.isAppActive(app.address)).to.be.false;
+
+        await expect(
+          erc1155Dummy
+            .connect(w1)
+            .safeTransferFrom(
+              w1.address,
+              metaStore.address,
+              1,
+              10,
+              new ListingConfig(
+                ethers.utils.parseEther("0.25"),
+                app.address
+              ).toBytes()
+            )
+        ).to.be.revertedWith("MetaStore: app not active");
+      });
+
+      after(async () => {
+        await expect(metaStore.connect(app).setAppActive(true))
+          .to.emit(metaStore, "SetAppActive")
+          .withArgs(app.address, true);
+        expect(await metaStore.isAppActive(app.address)).to.be.true;
+
         await expect(metaStore.connect(app).setAppFee(5))
           .to.emit(metaStore, "SetAppFee")
           .withArgs(app.address, 5);
+        expect(await metaStore.appFee(app.address)).to.eq(5);
+      });
+    });
+
+    describe("when seller is not approved", () => {
+      it("should fail", async () => {
+        expect(await metaStore.isSellerApproved(app.address, w1.address)).to.be
+          .false;
+
+        await expect(
+          erc1155Dummy
+            .connect(w1)
+            .safeTransferFrom(
+              w1.address,
+              metaStore.address,
+              1,
+              10,
+              new ListingConfig(
+                ethers.utils.parseEther("0.25"),
+                app.address
+              ).toBytes()
+            )
+        ).to.be.revertedWith("MetaStore: seller not approved");
       });
 
-      it("should list NFT", async () => {
+      after(async () => {
+        await expect(metaStore.connect(app).setSellerApproved(w1.address, true))
+          .to.emit(metaStore, "SetSellerApproved")
+          .withArgs(app.address, w1.address, true);
+      });
+    });
+
+    describe("when everything is set", () => {
+      it("should list token", async () => {
         const _listingId = listingId(
           erc1155Dummy.address,
           1,
@@ -146,7 +210,7 @@ describe("MetaStore", async () => {
       });
     });
 
-    it("should purchase NFT", async () => {
+    it("should purchase token", async () => {
       // app receives app fee.
       const appBalanceBefore = await app.getBalance();
 
@@ -221,6 +285,37 @@ describe("MetaStore", async () => {
   });
 
   describe("replenishing stock", () => {
+    describe("when app is inactive", () => {
+      before(async () => {
+        await expect(metaStore.connect(app).setAppActive(false))
+          .to.emit(metaStore, "SetAppActive")
+          .withArgs(app.address, false);
+      });
+
+      it("should fail", async () => {
+        await expect(
+          erc1155Dummy
+            .connect(w1)
+            .safeTransferFrom(
+              w1.address,
+              metaStore.address,
+              1,
+              10,
+              new ListingConfig(
+                ethers.utils.parseEther("0.35"),
+                app.address
+              ).toBytes()
+            )
+        ).to.be.revertedWith("MetaStore: app not active");
+      });
+
+      after(async () => {
+        await expect(metaStore.connect(app).setAppActive(true))
+          .to.emit(metaStore, "SetAppActive")
+          .withArgs(app.address, true);
+      });
+    });
+
     it("should replenish stock", async () => {
       const _listingId = listingId(
         erc1155Dummy.address,
@@ -272,7 +367,10 @@ describe("MetaStore", async () => {
       // w1 is seller.
       const w1TokenBalanceBefore = await erc1155Dummy.balanceOf(w1.address, 1);
 
-      await expect(metaStore.connect(w1).withdraw(_listingId, w1.address, 18))
+      const listingStockSizeBefore = (await metaStore.getListing(_listingId))
+        .stockSize;
+
+      await expect(metaStore.connect(w1).withdraw(_listingId, w1.address, 8))
         .to.emit(metaStore, "Withdraw")
         .withArgs(
           [erc1155Dummy.address, 1],
@@ -280,14 +378,67 @@ describe("MetaStore", async () => {
           _listingId,
           w1.address,
           w1.address,
-          18
+          8
         );
 
-      // w1 token balance should increase by 18.
+      // w1 token balance should increase by 8.
       const w1TokenBalanceAfter = await erc1155Dummy.balanceOf(w1.address, 1);
-      expect(w1TokenBalanceAfter).to.be.eq(w1TokenBalanceBefore.add(18));
+      expect(w1TokenBalanceAfter).to.be.eq(w1TokenBalanceBefore.add(8));
 
-      expect((await metaStore.getListing(_listingId)).stockSize).to.be.eq(0);
+      // listing stock size should decrease by 8.
+      const listingStockSizeAfter = await metaStore.getListing(_listingId);
+      expect(listingStockSizeAfter.stockSize).to.be.eq(
+        listingStockSizeBefore.sub(8)
+      );
+    });
+
+    describe("when app is disabled", () => {
+      before(async () => {
+        await metaStore.connect(app).setAppActive(false);
+      });
+
+      it("should still work", async () => {
+        const _listingId = listingId(
+          erc1155Dummy.address,
+          1,
+          w1.address,
+          app.address
+        );
+
+        // w1 is seller.
+        const w1TokenBalanceBefore = await erc1155Dummy.balanceOf(
+          w1.address,
+          1
+        );
+
+        const listingStockSizeBefore = (await metaStore.getListing(_listingId))
+          .stockSize;
+
+        await expect(metaStore.connect(w1).withdraw(_listingId, w1.address, 7))
+          .to.emit(metaStore, "Withdraw")
+          .withArgs(
+            [erc1155Dummy.address, 1],
+            app.address,
+            _listingId,
+            w1.address,
+            w1.address,
+            7
+          );
+
+        // w1 token balance should increase by 7.
+        const w1TokenBalanceAfter = await erc1155Dummy.balanceOf(w1.address, 1);
+        expect(w1TokenBalanceAfter).to.be.eq(w1TokenBalanceBefore.add(7));
+
+        // listing stock size should decrease by 7.
+        const listingStockSizeAfter = await metaStore.getListing(_listingId);
+        expect(listingStockSizeAfter.stockSize).to.be.eq(
+          listingStockSizeBefore.sub(7)
+        );
+      });
+
+      after(async () => {
+        await metaStore.connect(app).setAppActive(true);
+      });
     });
   });
 });

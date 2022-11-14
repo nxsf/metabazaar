@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/interfaces/IERC1155Receiver.sol";
 import "@openzeppelin/contracts/interfaces/IERC721Receiver.sol";
 import "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title Meta Store
@@ -15,15 +16,18 @@ import "@openzeppelin/contracts/utils/Context.sol";
  * Send ERC721 and ERC1155 tokens to this contract to list them for sale
  * (see {onERC721Received}, {onERC1155Received} and {onERC1155BatchReceived}).
  *
- * A new listing is required to have an application address specified.
- * An application is considered eligible for a listing creation
- * if its {appFee} is positive (see {setAppFee}).
+ * A listing has its target application, which is responsible for rendering
+ * the listing in some sort of UI. An application must be explicitly
+ * {isAppEnabled} and {isAppActive} for new listings to be created for it,
+ * as well as existing listings to be purchased and replenished.
  *
- * Ideas:
- *
- * - Accept other tokens as payment (ERC20, ERC1155).
+ * A seller must be explicitly {isSellerApproved} for each application,
+ * which is however only required for the first (hence primary) listing
+ * of a particular token for a particular application (see {primaryListingId}).
+ * Subsequent, that is, secondary, listings of the same token
+ * for the same application will not require any seller approval.
  */
-contract MetaStore is IERC721Receiver, IERC1155Receiver {
+contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
     /// An ERC721 or ERC1155 token configuration.
     struct NFT {
         address contract_;
@@ -56,8 +60,21 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver {
         uint256 stockSize;
     }
 
-    /// Emitted when an application is registered.
+    /// Emitted on {setAppEnabled}.
+    event SetAppEnabled(address indexed app, bool enabled);
+
+    /// Emitted on {setAppActive}.
+    event SetAppActive(address indexed app, bool active);
+
+    /// Emitted on {setAppFee}.
     event SetAppFee(address indexed app, uint8 fee);
+
+    /// Emitted on {setSellerApproved}.
+    event SetSellerApproved(
+        address indexed app,
+        address indexed seller,
+        bool approved
+    );
 
     /**
      * Emitted when a listing is created.
@@ -89,7 +106,7 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver {
         uint256 amount
     );
 
-    /// Emitted when a token is withdrawn from a listing.
+    /// Emitted when a token is {withdraw}n from a listing.
     event Withdraw(
         NFT token,
         address indexed appAddress,
@@ -99,7 +116,7 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver {
         uint256 amount
     );
 
-    /// Emitted when a token is purchased.
+    /// Emitted when a token is {purchase}d.
     event Purchase(
         NFT token,
         bytes32 indexed listingId,
@@ -117,28 +134,69 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver {
     mapping(bytes32 => Listing) _listings;
 
     /**
-     * Get an application fee.
-     * If zero, the application is not not eligible
-     * for listing creation (see {setAppFee}).
+     * Return true if an application is enabled (controlled by the contract owner).
+     * A disabled application is not eligible for listing creation.
      */
-    mapping(address => uint8) public appFee;
-
-    /// Get the first (hence primary) listing ID for the given token, if any.
-    mapping(address => mapping(uint256 => bytes32)) public primaryListingId;
+    mapping(address => bool) public isAppEnabled;
 
     /**
-     * Set the app fee for the caller, calculated as `fee / 255`.
-     * Once set, the fee cannot be changed.
-     *
-     * @param fee must be non-zero.
-     *
+     * Return true if an application is active (controlled by the application).
+     * An inactive application is not eligible for listing creation.
+     */
+    mapping(address => bool) public isAppActive;
+
+    /// Get an application fee.
+    mapping(address => uint8) public appFee;
+
+    // @dev app => (seller => approved).
+    mapping(address => mapping(address => bool)) _sellerApprovals;
+
+    // @dev app => (token contract => (token id => listing id)).
+    mapping(address => mapping(address => mapping(uint256 => bytes32))) _primaryListingId;
+
+    /**
+     * Set whether an `app` is `enabled`.
+     * Only the contract {owner} may enable an application.
+     * Emits {SetAppEnabled} event.
+     */
+    function setAppEnabled(address app, bool enabled) external onlyOwner {
+        require(isAppEnabled[app] != enabled, "MetaStore: already set");
+        isAppEnabled[app] = enabled;
+        emit SetAppEnabled(app, enabled);
+    }
+
+    /**
+     * Set whether the caller application is `active`.
+     * Only the application itself may set its activity.
+     * Emits {SetAppActive} event.
+     */
+    function setAppActive(bool active) external {
+        require(isAppActive[msg.sender] != active, "MetaStore: already set");
+        isAppActive[msg.sender] = active;
+        emit SetAppActive(msg.sender, active);
+    }
+
+    /**
+     * Set the fee for the caller application, calculated as `fee / 255`.
      * Emits {SetAppFee} event.
      */
     function setAppFee(uint8 fee) external {
-        require(appFee[msg.sender] == 0, "MetaStore: already set fee");
-        require(fee > 0, "MetaStore: fee must be non-zero");
         appFee[msg.sender] = fee;
         emit SetAppFee(msg.sender, fee);
+    }
+
+    /**
+     * Set whether `seller` is approved for the caller application.
+     * Emits {SetSellerApproved}.
+     */
+    function setSellerApproved(address seller, bool approved) external {
+        require(
+            _sellerApprovals[msg.sender][seller] != approved,
+            "MetaStore: already set"
+        );
+
+        _sellerApprovals[msg.sender][seller] = approved;
+        emit SetSellerApproved(msg.sender, seller, approved);
     }
 
     /**
@@ -161,7 +219,6 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver {
     ) external override returns (bytes4) {
         ListingConfig memory config = abi.decode(data, (ListingConfig));
 
-        // TODO: Change to `from`?
         address seller = operator;
         bytes32 listingId = _listingId(
             msg.sender,
@@ -278,14 +335,15 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver {
     }
 
     /**
-     * Purchase a token listed for sale.
+     * Purchase a token previously listed for sale.
      * Emits {Purchase} event.
      */
     function purchase(bytes32 listingId, uint256 amount) external payable {
         Listing storage listing = _listings[listingId];
 
+        require(isAppEnabled[listing.app], "MetaStore: app not enabled");
+        require(isAppActive[listing.app], "MetaStore: app not active");
         require(amount > 0, "MetaStore: amount must be positive");
-
         require(listing.stockSize >= amount, "MetaStore: insufficient stock");
 
         require(
@@ -432,6 +490,17 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver {
     }
 
     /**
+     * Returns true if the `seller` is approved for the `app`.
+     */
+    function isSellerApproved(address app, address seller)
+        external
+        view
+        returns (bool)
+    {
+        return _sellerApprovals[app][seller];
+    }
+
+    /**
      * Get a listing by its ID, calculated as
      * `keccak256(abi.encode(tokenContract, tokenId, seller, app))`.
      * Reverts if the listing does not exist.
@@ -444,6 +513,18 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver {
         Listing memory listing = _listings[listingId];
         require(listing.app != address(0), "MetaStore: not found");
         return listing;
+    }
+
+    /**
+     * Get the first (hence primary) listing ID
+     * for the given token per appliation, if any.
+     */
+    function primaryListingId(
+        address app,
+        address tokenContract,
+        uint256 tokenId
+    ) external view returns (bytes32) {
+        return _primaryListingId[app][tokenContract][tokenId];
     }
 
     function supportsInterface(bytes4 interfaceId)
@@ -467,8 +548,19 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver {
         uint256 price,
         address payable app
     ) private {
-        require(seller != address(0), "MetaStore: zero seller");
-        require(appFee[app] > 0, "MetaStore: app not eligible");
+        require(isAppEnabled[app], "MetaStore: app not enabled");
+        require(isAppActive[app], "MetaStore: app not active");
+
+        if (_primaryListingId[app][tokenContract][tokenId] == 0) {
+            require(
+                _sellerApprovals[app][seller],
+                "MetaStore: seller not approved"
+            );
+
+            _primaryListingId[app][tokenContract][tokenId] = listingId;
+        } else {
+            // For secondary listings, there are no seller restrictions.
+        }
 
         _listings[listingId].seller = seller;
         _listings[listingId].token.contract_ = tokenContract;
@@ -476,10 +568,6 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver {
         _listings[listingId].stockSize = stockSize;
         _listings[listingId].price = price;
         _listings[listingId].app = app;
-
-        if (primaryListingId[tokenContract][tokenId] == 0) {
-            primaryListingId[tokenContract][tokenId] = listingId;
-        }
 
         emit List(
             operator,
@@ -499,6 +587,9 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver {
         uint256 price,
         uint256 amount
     ) internal {
+        require(isAppEnabled[appAddress], "MetaStore: app not enabled");
+        require(isAppActive[appAddress], "MetaStore: app not active");
+
         _listings[listingId].stockSize += amount;
         _listings[listingId].price = price;
 
