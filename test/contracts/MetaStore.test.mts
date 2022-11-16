@@ -27,23 +27,32 @@ class ListingConfig {
 use(solidity);
 
 describe("MetaStore", async () => {
-  const [w0, w1, w2, app] = new MockProvider().getWallets();
+  const [w0, w1, w2, app, owner] = new MockProvider().getWallets();
+  const BASE_FEE = 10;
 
   let erc1155Dummy: Erc1155Dummy;
   let metaStore: MetaStore;
 
   before(async () => {
-    erc1155Dummy = (await deployContract(w0, ERC1155DummyABI)) as Erc1155Dummy;
-    metaStore = (await deployContract(w0, MetaStoreABI)) as MetaStore;
+    erc1155Dummy = (await deployContract(
+      owner,
+      ERC1155DummyABI
+    )) as Erc1155Dummy;
+
+    metaStore = (await deployContract(owner, MetaStoreABI, [
+      BASE_FEE,
+    ])) as MetaStore;
   });
 
   describe("listing", () => {
     before(async () => {
       // Mint 50 tokens for w0.
-      await erc1155Dummy.mint(w0.address, 1, 50, [], 10);
+      await erc1155Dummy.connect(w0).mint(w0.address, 1, 50, [], 10);
 
       // Transfer 40 tokens to w1.
-      await erc1155Dummy.safeTransferFrom(w0.address, w1.address, 1, 40, []);
+      await erc1155Dummy
+        .connect(w0)
+        .safeTransferFrom(w0.address, w1.address, 1, 40, []);
     });
 
     describe("when app is not enabled", () => {
@@ -211,6 +220,9 @@ describe("MetaStore", async () => {
     });
 
     it("should purchase token", async () => {
+      // owner receives base fee.
+      const ownerBalanceBefore = await owner.getBalance();
+
       // app receives app fee.
       const appBalanceBefore = await app.getBalance();
 
@@ -242,8 +254,9 @@ describe("MetaStore", async () => {
           w0.address,
           BigNumber.from("0x45a93abd01f5f5"), // 0.019607843137254901
           app.address,
-          BigNumber.from("0x2176f18cfe6ea0"), // 0.009419454056132256
-          BigNumber.from("0x06893b2d89b19b6b") // 0.470972702806612843
+          BigNumber.from("0x2026fc28179777"), // 0.009050063700989815 (app fee)
+          BigNumber.from("0x014ff564e6d729"), // 0.000369390355142441 (base fee)
+          BigNumber.from("0x06893b2d89b19b6b") // 0.470972702806612843 (profit)
         );
 
       // w2 token balance should increase by 2.
@@ -256,10 +269,16 @@ describe("MetaStore", async () => {
         w0BalanceBefore.add(ethers.utils.parseEther("0.019607843137254901"))
       );
 
-      // app balance should increase by (0.5 - 0.5 * (10 / 255)) * 5 / 255 (app fee).
+      // app balance should increase by `((0.5 - 0.5 * (10 / 255)) * 5 / 255) * (255 - BASE_FEE) / 255` (app fee).
       const appBalanceAfter = await app.getBalance();
       expect(appBalanceAfter).to.be.eq(
-        appBalanceBefore.add(ethers.utils.parseEther("0.009419454056132256"))
+        appBalanceBefore.add(ethers.utils.parseEther("0.009050063700989815"))
+      );
+
+      // owner balance should increase by `((0.5 - 0.5 * (10 / 255)) * 5 / 255) * BASE_FEE / 255` (base fee).
+      const ownerBalanceAfter = await owner.getBalance();
+      expect(ownerBalanceAfter).to.be.eq(
+        ownerBalanceBefore.add(ethers.utils.parseEther("0.000369390355142441"))
       );
 
       // w1 balance should increase by (0.5 - 0.5 * (10 / 255)) * 250 / 255 (seller).

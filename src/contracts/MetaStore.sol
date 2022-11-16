@@ -60,6 +60,9 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
         uint256 stockSize;
     }
 
+    /// Emitted on {setBaseFee}.
+    event SetBaseFee(uint8 baseFee);
+
     /// Emitted on {setAppEnabled}.
     event SetAppEnabled(address indexed app, bool enabled);
 
@@ -127,11 +130,15 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
         uint256 royaltyValue,
         address indexed appAddress,
         uint256 appFee,
+        uint256 baseFee,
         uint256 profit
     );
 
     // Mapping from listing ID to its struct.
     mapping(bytes32 => Listing) _listings;
+
+    /// The base fee is extracted from the app fee and sent to the contract owner.
+    uint8 baseFee;
 
     /**
      * Return true if an application is enabled (controlled by the contract owner).
@@ -153,6 +160,18 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
 
     // @dev app => (token contract => (token id => listing id)).
     mapping(address => mapping(address => mapping(uint256 => bytes32))) _primaryListingId;
+
+    constructor(uint8 _baseFee) {
+        baseFee = _baseFee;
+    }
+
+    /**
+     * @dev Set the base fee.
+     * Emits {SetBaseFee}.
+     */
+    function setBaseFee(uint8 _baseFee) external onlyOwner {
+        baseFee = _baseFee;
+    }
 
     /**
      * Set whether an `app` is `enabled`.
@@ -360,6 +379,7 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
         address royaltyAddress;
         uint256 royaltyValue;
         uint256 appFee_;
+        uint256 baseFee_;
 
         // Royalties are top priority for healthy economy.
         if (
@@ -378,10 +398,17 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
             }
         }
 
-        // Then, transfer the application fee.
+        // Then, transfer the application and base fees.
         if (profit > 0) {
             appFee_ = (profit * appFee[listing.app]) / 255;
+
+            baseFee_ = (appFee_ * baseFee) / 255;
+            payable(owner()).transfer(baseFee_);
+
+            appFee_ -= baseFee_;
             profit -= appFee_;
+            profit -= baseFee_;
+
             listing.app.transfer(appFee_);
         }
 
@@ -429,6 +456,7 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
             royaltyValue,
             listing.app,
             appFee_,
+            baseFee_,
             profit
         );
     }
