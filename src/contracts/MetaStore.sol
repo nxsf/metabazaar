@@ -91,39 +91,29 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
      * appAddress
      * ))`.
      */
-    event List(
-        address operator,
-        NFT token,
-        address indexed seller,
-        address indexed appAddress,
-        bytes32 listingId,
-        uint256 price,
-        uint256 stockSize
-    );
+    event List(NFT token, address indexed seller, address indexed appAddress);
 
     /// Emitted when an existing listing is replenished, or created.
     event Replenish(
-        NFT token,
+        NFT token, // ADHOC: Excessive information.
         address indexed appAddress,
         bytes32 indexed listingId,
-        address indexed operator,
         uint256 price,
         uint256 amount
     );
 
     /// Emitted when a token is {withdraw}n from a listing.
     event Withdraw(
-        NFT token,
+        NFT token, // ADHOC: Excessive information.
         address indexed appAddress,
         bytes32 indexed listingId,
-        address indexed operator,
         address to,
         uint256 amount
     );
 
     /// Emitted when a token is {purchase}d.
     event Purchase(
-        NFT token,
+        NFT token, // ADHOC: Excessive information.
         bytes32 indexed listingId,
         address indexed buyer,
         uint256 amount,
@@ -228,9 +218,10 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
      *
      * @param data ABI-encoded {ListingConfig} struct.
      *
-     * Emits {List} event.
+     * Emits {List} and {Replenish} events.
      *
-     * @notice Replenishing of an ERC721 listing is not supported.
+     * @notice Replenishing of an ERC721 listing is only usually possible
+     * after a withdrawal (see {withdraw}).
      */
     function onERC721Received(
         address operator,
@@ -255,7 +246,6 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
 
         if (_listings[listingId].seller == address(0)) {
             _initListing(
-                operator,
                 listingId,
                 seller,
                 msg.sender,
@@ -265,7 +255,7 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
                 config.app
             );
         } else {
-            revert("MetaStore: ERC721 listing already exists");
+            _replenishListing(config.app, listingId, config.price, 1);
         }
 
         return IERC721Receiver.onERC721Received.selector;
@@ -295,7 +285,6 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
 
         if (_listings[listingId].app == address(0)) {
             _initListing(
-                operator,
                 listingId,
                 seller,
                 msg.sender,
@@ -305,13 +294,7 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
                 config.app
             );
         } else {
-            _replenishListing(
-                operator,
-                config.app,
-                listingId,
-                config.price,
-                value
-            );
+            _replenishListing(config.app, listingId, config.price, value);
         }
 
         return IERC1155Receiver.onERC1155Received.selector;
@@ -347,7 +330,6 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
 
             if (_listings[listingId].app == address(0)) {
                 _initListing(
-                    operator,
                     listingId,
                     seller,
                     msg.sender,
@@ -358,7 +340,6 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
                 );
             } else {
                 _replenishListing(
-                    operator,
                     config.app,
                     listingId,
                     config.price,
@@ -524,14 +505,7 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
             );
         }
 
-        emit Withdraw(
-            listing.token,
-            listing.app,
-            listingId,
-            msg.sender,
-            to,
-            amount
-        );
+        emit Withdraw(listing.token, listing.app, listingId, to, amount);
     }
 
     /**
@@ -584,7 +558,6 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
     }
 
     function _initListing(
-        address operator,
         bytes32 listingId,
         address payable seller,
         address tokenContract,
@@ -614,10 +587,10 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
         _listings[listingId].price = price;
         _listings[listingId].app = app;
 
-        emit List(
-            operator,
-            NFT(tokenContract, tokenId),
-            seller,
+        emit List(NFT(tokenContract, tokenId), seller, app);
+
+        emit Replenish(
+            _listings[listingId].token,
             app,
             listingId,
             price,
@@ -626,7 +599,6 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
     }
 
     function _replenishListing(
-        address operator,
         address appAddress,
         bytes32 listingId,
         uint256 price,
@@ -642,7 +614,6 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
             _listings[listingId].token,
             appAddress,
             listingId,
-            operator,
             price,
             amount
         );

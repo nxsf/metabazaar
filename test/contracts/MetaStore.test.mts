@@ -194,10 +194,10 @@ describe("MetaStore", async () => {
             )
         )
           .to.emit(metaStore, "List")
+          .withArgs([erc1155Dummy.address, 1], w1.address, app.address)
+          .and.to.emit(metaStore, "Replenish")
           .withArgs(
-            w1.address,
             [erc1155Dummy.address, 1],
-            w1.address,
             app.address,
             _listingId,
             ethers.utils.parseEther("0.25"),
@@ -390,7 +390,6 @@ describe("MetaStore", async () => {
           [erc1155Dummy.address, 1],
           app.address,
           _listingId,
-          w1.address,
           ethers.utils.parseEther("0.35"),
           10
         );
@@ -423,7 +422,6 @@ describe("MetaStore", async () => {
           [erc1155Dummy.address, 1],
           app.address,
           _listingId,
-          w1.address,
           w1.address,
           8
         );
@@ -467,7 +465,6 @@ describe("MetaStore", async () => {
             [erc1155Dummy.address, 1],
             app.address,
             _listingId,
-            w1.address,
             w1.address,
             7
           );
