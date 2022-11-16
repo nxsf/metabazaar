@@ -8,18 +8,20 @@ import { BigNumber, BigNumberish, BytesLike, ethers } from "ethers";
 import { keccak256 } from "@ethersproject/keccak256";
 
 class ListingConfig {
-  price: BigNumberish;
+  seller: string;
   app: string;
+  price: BigNumberish;
 
-  constructor(price: BigNumberish, app: string) {
-    this.price = price;
+  constructor(seller: string, app: string, price: BigNumberish) {
+    this.seller = seller;
     this.app = app;
+    this.price = price;
   }
 
   toBytes(): BytesLike {
     return ethers.utils.defaultAbiCoder.encode(
-      ["address", "uint256"],
-      [this.app.toString(), this.price]
+      ["address", "address", "uint256"],
+      [this.seller, this.app, this.price]
     );
   }
 }
@@ -68,8 +70,9 @@ describe("MetaStore", async () => {
               1,
               10,
               new ListingConfig(
-                ethers.utils.parseEther("0.25"),
-                app.address
+                w1.address,
+                app.address,
+                ethers.utils.parseEther("0.25")
               ).toBytes()
             )
         ).to.be.revertedWith("MetaStore: app not enabled");
@@ -96,8 +99,9 @@ describe("MetaStore", async () => {
               1,
               10,
               new ListingConfig(
-                ethers.utils.parseEther("0.25"),
-                app.address
+                w1.address,
+                app.address,
+                ethers.utils.parseEther("0.25")
               ).toBytes()
             )
         ).to.be.revertedWith("MetaStore: app not active");
@@ -130,8 +134,9 @@ describe("MetaStore", async () => {
               1,
               10,
               new ListingConfig(
-                ethers.utils.parseEther("0.25"),
-                app.address
+                w1.address,
+                app.address,
+                ethers.utils.parseEther("0.25")
               ).toBytes()
             )
         ).to.be.revertedWith("MetaStore: seller not approved");
@@ -141,6 +146,26 @@ describe("MetaStore", async () => {
         await expect(metaStore.connect(app).setSellerApproved(w1.address, true))
           .to.emit(metaStore, "SetSellerApproved")
           .withArgs(app.address, w1.address, true);
+      });
+    });
+
+    describe("when seller is invalid", () => {
+      it("should fail", async () => {
+        await expect(
+          erc1155Dummy
+            .connect(w1)
+            .safeTransferFrom(
+              w1.address,
+              metaStore.address,
+              1,
+              10,
+              new ListingConfig(
+                w0.address,
+                app.address,
+                ethers.utils.parseEther("0.25")
+              ).toBytes()
+            )
+        ).to.be.revertedWith("MetaStore: invalid seller");
       });
     });
 
@@ -162,8 +187,9 @@ describe("MetaStore", async () => {
               1,
               10,
               new ListingConfig(
-                ethers.utils.parseEther("0.25"),
-                app.address
+                w1.address,
+                app.address,
+                ethers.utils.parseEther("0.25")
               ).toBytes()
             )
         )
@@ -321,8 +347,9 @@ describe("MetaStore", async () => {
               1,
               10,
               new ListingConfig(
-                ethers.utils.parseEther("0.35"),
-                app.address
+                w1.address,
+                app.address,
+                ethers.utils.parseEther("0.35")
               ).toBytes()
             )
         ).to.be.revertedWith("MetaStore: app not active");
@@ -352,8 +379,9 @@ describe("MetaStore", async () => {
             1,
             10,
             new ListingConfig(
-              ethers.utils.parseEther("0.35"),
-              app.address
+              w1.address,
+              app.address,
+              ethers.utils.parseEther("0.35")
             ).toBytes()
           )
       )

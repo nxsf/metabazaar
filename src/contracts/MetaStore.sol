@@ -40,9 +40,11 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
      * {onERC1155Received} and {onERC1155BatchReceived}.
      */
     struct ListingConfig {
-        /// The application which would receive fee (constant).
+        /// The listing seller; must be approved for the target application.
+        address payable seller;
+        /// The target application.
         address payable app;
-        /// Price for a single token (constant).
+        /// Price for a single token.
         uint256 price;
     }
 
@@ -221,9 +223,9 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
     /**
      * Send an ERC721 token to this contract to list it for sale.
      * Listing details are inferred from the transfer, and the `data` argument.
-     * Application fee is taken from the actual {appFee} mapping.
+     * The seller is taken from the `data` argument; it must be either `operator`
+     * or `from`.
      *
-     * @param operator becomes the {Listing.seller}.
      * @param data ABI-encoded {ListingConfig} struct.
      *
      * Emits {List} event.
@@ -232,13 +234,18 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
      */
     function onERC721Received(
         address operator,
-        address,
+        address from,
         uint256 tokenId,
         bytes calldata data
     ) external override returns (bytes4) {
         ListingConfig memory config = abi.decode(data, (ListingConfig));
 
-        address seller = operator;
+        address payable seller = config.seller;
+        require(
+            seller == operator || seller == from,
+            "MetaStore: invalid seller"
+        );
+
         bytes32 listingId = _listingId(
             msg.sender,
             tokenId,
@@ -250,7 +257,7 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
             _initListing(
                 operator,
                 listingId,
-                payable(seller),
+                seller,
                 msg.sender,
                 tokenId,
                 1,
@@ -271,21 +278,26 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
      */
     function onERC1155Received(
         address operator,
-        address,
+        address from,
         uint256 id,
         uint256 value,
         bytes calldata data
     ) external override returns (bytes4) {
         ListingConfig memory config = abi.decode(data, (ListingConfig));
 
-        address seller = operator;
+        address payable seller = config.seller;
+        require(
+            seller == operator || seller == from,
+            "MetaStore: invalid seller"
+        );
+
         bytes32 listingId = _listingId(msg.sender, id, seller, config.app);
 
         if (_listings[listingId].app == address(0)) {
             _initListing(
                 operator,
                 listingId,
-                payable(seller),
+                seller,
                 msg.sender,
                 id,
                 value,
@@ -312,13 +324,18 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
      */
     function onERC1155BatchReceived(
         address operator,
-        address,
+        address from,
         uint256[] calldata ids,
         uint256[] calldata values,
         bytes calldata data
     ) external override returns (bytes4) {
         ListingConfig memory config = abi.decode(data, (ListingConfig));
-        address seller = operator;
+
+        address payable seller = config.seller;
+        require(
+            seller == operator || seller == from,
+            "MetaStore: invalid seller"
+        );
 
         for (uint256 i = 0; i < ids.length; i++) {
             bytes32 listingId = _listingId(
@@ -332,7 +349,7 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
                 _initListing(
                     operator,
                     listingId,
-                    payable(seller),
+                    seller,
                     msg.sender,
                     ids[i],
                     values[i],
