@@ -9,7 +9,7 @@ async function deploy(contractName, ...args) {
 }
 
 async function main() {
-  await deploy("MetaStore", [10]);
+  await deploy("MetaStore");
 }
 
 main()

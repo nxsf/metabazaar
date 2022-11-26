@@ -41,9 +41,7 @@ describe("MetaStore", async () => {
       ERC1155DummyABI
     )) as Erc1155Dummy;
 
-    metaStore = (await deployContract(owner, MetaStoreABI, [
-      BASE_FEE,
-    ])) as MetaStore;
+    metaStore = (await deployContract(owner, MetaStoreABI)) as MetaStore;
   });
 
   describe("listing", () => {
@@ -170,6 +168,12 @@ describe("MetaStore", async () => {
     });
 
     describe("when everything is set", () => {
+      before(async () => {
+        await expect(metaStore.connect(app).setAppGratitude(10))
+          .to.emit(metaStore, "SetAppGratitude")
+          .withArgs(app.address, 10);
+      });
+
       it("should list token", async () => {
         const _listingId = listingId(
           erc1155Dummy.address,
@@ -246,7 +250,7 @@ describe("MetaStore", async () => {
     });
 
     it("should purchase token", async () => {
-      // owner receives base fee.
+      // owner receives gratitude.
       const ownerBalanceBefore = await owner.getBalance();
 
       // app receives app fee.
@@ -281,7 +285,7 @@ describe("MetaStore", async () => {
           BigNumber.from("0x45a93abd01f5f5"), // 0.019607843137254901
           app.address,
           BigNumber.from("0x2026fc28179777"), // 0.009050063700989815 (app fee)
-          BigNumber.from("0x014ff564e6d729"), // 0.000369390355142441 (base fee)
+          BigNumber.from("0x014ff564e6d729"), // 0.000369390355142441 (gratitude)
           BigNumber.from("0x06893b2d89b19b6b") // 0.470972702806612843 (profit)
         );
 
@@ -289,25 +293,25 @@ describe("MetaStore", async () => {
       const w2TokenBalanceAfter = await erc1155Dummy.balanceOf(w2.address, 1);
       expect(w2TokenBalanceAfter).to.be.eq(w2TokenBalanceBefore.add(2));
 
-      // w0 balance should increase by 0.5 * (10 / 255) (royalty).
+      // w0 balance should increase by royalty.
       const w0BalanceAfter = await w0.getBalance();
       expect(w0BalanceAfter).to.be.eq(
         w0BalanceBefore.add(ethers.utils.parseEther("0.019607843137254901"))
       );
 
-      // app balance should increase by `((0.5 - 0.5 * (10 / 255)) * 5 / 255) * (255 - BASE_FEE) / 255` (app fee).
+      // app balance should increase by app fee.
       const appBalanceAfter = await app.getBalance();
       expect(appBalanceAfter).to.be.eq(
         appBalanceBefore.add(ethers.utils.parseEther("0.009050063700989815"))
       );
 
-      // owner balance should increase by `((0.5 - 0.5 * (10 / 255)) * 5 / 255) * BASE_FEE / 255` (base fee).
+      // owner balance should increase by gratitude.
       const ownerBalanceAfter = await owner.getBalance();
       expect(ownerBalanceAfter).to.be.eq(
         ownerBalanceBefore.add(ethers.utils.parseEther("0.000369390355142441"))
       );
 
-      // w1 balance should increase by (0.5 - 0.5 * (10 / 255)) * 250 / 255 (seller).
+      // w1 balance should increase by profit.
       const w1BalanceAfter = await w1.getBalance();
       expect(w1BalanceAfter).to.be.eq(
         w1BalanceBefore.add(ethers.utils.parseEther("0.470972702806612843"))

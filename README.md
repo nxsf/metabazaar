@@ -8,4 +8,5 @@ For testing, `waffle` is used along with `ethers`.
 3. Enable application (`setAppEnabled(app, true)`)
 4. Activate application (`setAppActive(true)`)
 5. Set application fee (`setAppFee(10)`)
-6. Approve seller (`setSellerApproved(seller, true)`)
+6. (Optional) Set application gratitude (`setAppGratitude(10)`)
+7. Approve seller (`setSellerApproved(seller, true)`)
