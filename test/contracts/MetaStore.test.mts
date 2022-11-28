@@ -115,6 +115,12 @@ describe("MetaStore", async () => {
           .to.emit(metaStore, "SetAppFee")
           .withArgs(app.address, 5);
         expect(await metaStore.appFee(app.address)).to.eq(5);
+
+        await expect(metaStore.connect(app).setIsSellerApprovalRequired(true))
+          .to.emit(metaStore, "SetIsSellerApprovalRequired")
+          .withArgs(app.address, true);
+        expect(await metaStore.isSellerApprovalRequired(app.address)).to.be
+          .true;
       });
     });
 

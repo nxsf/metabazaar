@@ -21,7 +21,8 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  * {isAppEnabled} and {isAppActive} for new listings to be created for it,
  * as well as existing listings to be purchased and replenished.
  *
- * A seller must be explicitly {isSellerApproved} for each application,
+ * An app may {setIsSellerApprovalRequired}.
+ * In that case, a seller must be explicitly set {isSellerApproved},
  * which is however only required for the first (hence primary) listing
  * of a particular token for a particular application (see {primaryListingId}).
  * Subsequent, that is, secondary, listings of the same token
@@ -73,6 +74,9 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
 
     /// Emitted on {setAppGratitude}.
     event SetAppGratitude(address indexed app, uint8 gratitude);
+
+    /// Emitted on {setIsSellerApprovalRequired}.
+    event SetIsSellerApprovalRequired(address indexed app, bool required);
 
     /// Emitted on {setSellerApproved}.
     event SetSellerApproved(
@@ -150,6 +154,9 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
      */
     mapping(address => uint8) public appGratitude;
 
+    /// Return true if a seller approval is required for a particular application.
+    mapping(address => bool) public isSellerApprovalRequired;
+
     // @dev app => (seller => approved).
     mapping(address => mapping(address => bool)) _sellerApprovals;
 
@@ -194,6 +201,20 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
     function setAppGratitude(uint8 value) external {
         appGratitude[msg.sender] = value;
         emit SetAppGratitude(msg.sender, value);
+    }
+
+    /**
+     * Set whether a seller approval is required for the caller application.
+     * Emits {SetIsSellerApprovalRequired} event.
+     */
+    function setIsSellerApprovalRequired(bool required) external {
+        require(
+            isSellerApprovalRequired[msg.sender] != required,
+            "MetaStore: already set"
+        );
+
+        isSellerApprovalRequired[msg.sender] = required;
+        emit SetIsSellerApprovalRequired(msg.sender, required);
     }
 
     /**
@@ -468,11 +489,7 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
      * Withdraw tokens from a listing.
      * Emits {Withdraw} event.
      */
-    function withdraw(
-        bytes32 listingId,
-        address to,
-        uint256 amount
-    ) external {
+    function withdraw(bytes32 listingId, address to, uint256 amount) external {
         Listing storage listing = _listings[listingId];
 
         require(listing.seller == msg.sender, "MetaStore: not the seller");
@@ -516,11 +533,10 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
     /**
      * Returns true if the `seller` is approved for the `app`.
      */
-    function isSellerApproved(address app, address seller)
-        external
-        view
-        returns (bool)
-    {
+    function isSellerApproved(
+        address app,
+        address seller
+    ) public view returns (bool) {
         return _sellerApprovals[app][seller];
     }
 
@@ -529,11 +545,9 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
      * `keccak256(abi.encode(tokenContract, tokenId, seller, app))`.
      * Reverts if the listing does not exist.
      */
-    function getListing(bytes32 listingId)
-        external
-        view
-        returns (Listing memory)
-    {
+    function getListing(
+        bytes32 listingId
+    ) external view returns (Listing memory) {
         Listing memory listing = _listings[listingId];
         require(listing.app != address(0), "MetaStore: not found");
         return listing;
@@ -551,12 +565,9 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
         return _primaryListingId[app][tokenContract][tokenId];
     }
 
-    function supportsInterface(bytes4 interfaceId)
-        external
-        pure
-        override
-        returns (bool)
-    {
+    function supportsInterface(
+        bytes4 interfaceId
+    ) external pure override returns (bool) {
         return
             interfaceId == type(IERC1155Receiver).interfaceId ||
             interfaceId == type(IERC721Receiver).interfaceId;
@@ -576,13 +587,14 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
 
         if (_primaryListingId[app][tokenContract][tokenId] == 0) {
             require(
-                _sellerApprovals[app][seller],
+                !isSellerApprovalRequired[app] ||
+                    isSellerApproved(app, seller),
                 "MetaStore: seller not approved"
             );
 
             _primaryListingId[app][tokenContract][tokenId] = listingId;
         } else {
-            // For secondary listings, there are no seller restrictions.
+            // For secondary listings, there are no any seller restrictions.
         }
 
         _listings[listingId].seller = seller;
@@ -624,11 +636,10 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
         );
     }
 
-    function _isInterface(address contract_, bytes4 interfaceId)
-        internal
-        view
-        returns (bool)
-    {
+    function _isInterface(
+        address contract_,
+        bytes4 interfaceId
+    ) internal view returns (bool) {
         return IERC165(contract_).supportsInterface(interfaceId);
     }
 

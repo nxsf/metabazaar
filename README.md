@@ -9,4 +9,5 @@ For testing, `waffle` is used along with `ethers`.
 4. Activate application (`setAppActive(true)`)
 5. Set application fee (`setAppFee(10)`)
 6. (Optional) Set application gratitude (`setAppGratitude(10)`)
-7. Approve seller (`setSellerApproved(seller, true)`)
+7. (Optional) Set seller approval requirement (`setIsSellerApprovalRequired(true)`)
+8. (Optional) Approve seller (`setSellerApproved(seller, true)`)
