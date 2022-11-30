@@ -1,9 +1,8 @@
 ## OpenStore
 
 1. Set application fee (`setAppFee(10)`)
-2. (Optional) Set application gratitude (`setAppGratitude(10)`)
-3. (Optional) Set seller approval requirement (`setIsSellerApprovalRequired(true)`)
-4. (Optional) Approve seller (`setSellerApproved(seller, true)`)
+2. (Optional) Set seller approval requirement (`setIsSellerApprovalRequired(true)`)
+3. (Optional) Approve seller (`setSellerApproved(seller, true)`)
 
 ## Development
 

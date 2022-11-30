@@ -7,7 +7,6 @@ import "@openzeppelin/contracts/interfaces/IERC1155Receiver.sol";
 import "@openzeppelin/contracts/interfaces/IERC721Receiver.sol";
 import "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title Open Store
@@ -28,7 +27,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  * Subsequent, that is, secondary, listings of the same token
  * for the same application will not require any seller approval.
  */
-contract OpenStore is IERC721Receiver, IERC1155Receiver, Ownable {
+contract OpenStore is IERC721Receiver, IERC1155Receiver {
     /// An ERC721 or ERC1155 token configuration.
     struct NFT {
         address contract_;
@@ -65,9 +64,6 @@ contract OpenStore is IERC721Receiver, IERC1155Receiver, Ownable {
 
     /// Emitted on {setAppFee}.
     event SetAppFee(address indexed app, uint8 fee);
-
-    /// Emitted on {setAppGratitude}.
-    event SetAppGratitude(address indexed app, uint8 gratitude);
 
     /// Emitted on {setIsSellerApprovalRequired}.
     event SetIsSellerApprovalRequired(address indexed app, bool required);
@@ -120,7 +116,6 @@ contract OpenStore is IERC721Receiver, IERC1155Receiver, Ownable {
         uint256 royaltyValue,
         address indexed appAddress,
         uint256 appFee,
-        uint256 appGratitude,
         uint256 profit
     );
 
@@ -129,12 +124,6 @@ contract OpenStore is IERC721Receiver, IERC1155Receiver, Ownable {
 
     /// Get an application fee.
     mapping(address => uint8) public appFee;
-
-    /**
-     * A caller application may choose to transfer a portion
-     * of its income to the contract owner.
-     */
-    mapping(address => uint8) public appGratitude;
 
     /// Return true if a seller approval is required for a particular application.
     mapping(address => bool) public isSellerApprovalRequired;
@@ -152,15 +141,6 @@ contract OpenStore is IERC721Receiver, IERC1155Receiver, Ownable {
     function setAppFee(uint8 fee) external {
         appFee[msg.sender] = fee;
         emit SetAppFee(msg.sender, fee);
-    }
-
-    /**
-     * Set gratitude for the caller application.
-     * Emits {SetAppGratitude}.
-     */
-    function setAppGratitude(uint8 value) external {
-        appGratitude[msg.sender] = value;
-        emit SetAppGratitude(msg.sender, value);
     }
 
     /**
@@ -356,7 +336,6 @@ contract OpenStore is IERC721Receiver, IERC1155Receiver, Ownable {
         address royaltyAddress;
         uint256 royaltyValue;
         uint256 appFee_;
-        uint256 appGragitude_;
 
         // Royalties are top priority for healthy economy.
         if (
@@ -378,18 +357,12 @@ contract OpenStore is IERC721Receiver, IERC1155Receiver, Ownable {
         // Then, transfer the application and base fees.
         if (profit > 0) {
             appFee_ = (profit * appFee[listing.app]) / 255;
-            appGragitude_ = (appFee_ * appGratitude[listing.app]) / 255;
-
-            unchecked {
-                profit -= appFee_;
-                appFee_ -= appGragitude_;
-            }
-
-            if (appGragitude_ > 0) {
-                payable(owner()).transfer(appGragitude_);
-            }
 
             if (appFee_ > 0) {
+                unchecked {
+                    profit -= appFee_;
+                }
+
                 listing.app.transfer(appFee_);
             }
         }
@@ -438,7 +411,6 @@ contract OpenStore is IERC721Receiver, IERC1155Receiver, Ownable {
             royaltyValue,
             listing.app,
             appFee_,
-            appGragitude_,
             profit
         );
     }

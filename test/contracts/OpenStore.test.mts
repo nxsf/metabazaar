@@ -113,12 +113,6 @@ describe("OpenStore", async () => {
     });
 
     describe("when everything is set", () => {
-      before(async () => {
-        await expect(openStore.connect(app).setAppGratitude(10))
-          .to.emit(openStore, "SetAppGratitude")
-          .withArgs(app.address, 10);
-      });
-
       it("should list token", async () => {
         const _listingId = listingId(
           erc1155Dummy.address,
@@ -195,9 +189,6 @@ describe("OpenStore", async () => {
     });
 
     it("should purchase token", async () => {
-      // owner receives gratitude.
-      const ownerBalanceBefore = await owner.getBalance();
-
       // app receives app fee.
       const appBalanceBefore = await app.getBalance();
 
@@ -229,8 +220,7 @@ describe("OpenStore", async () => {
           w0.address,
           BigNumber.from("0x45a93abd01f5f5"), // 0.019607843137254901
           app.address,
-          BigNumber.from("0x2026fc28179777"), // 0.009050063700989815 (app fee)
-          BigNumber.from("0x014ff564e6d729"), // 0.000369390355142441 (gratitude)
+          BigNumber.from("0x2176f18cfe6ea0"), // 0.009050063700989815 (app fee)
           BigNumber.from("0x06893b2d89b19b6b") // 0.470972702806612843 (profit)
         );
 
@@ -247,13 +237,7 @@ describe("OpenStore", async () => {
       // app balance should increase by app fee.
       const appBalanceAfter = await app.getBalance();
       expect(appBalanceAfter).to.be.eq(
-        appBalanceBefore.add(ethers.utils.parseEther("0.009050063700989815"))
-      );
-
-      // owner balance should increase by gratitude.
-      const ownerBalanceAfter = await owner.getBalance();
-      expect(ownerBalanceAfter).to.be.eq(
-        ownerBalanceBefore.add(ethers.utils.parseEther("0.000369390355142441"))
+        appBalanceBefore.add(ethers.utils.parseEther("0.009419454056132256"))
       );
 
       // w1 balance should increase by profit.
