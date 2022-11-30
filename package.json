@@ -1,8 +1,7 @@
 {
-  "name": "fancysoft-meta",
+  "name": "interplanetary-marketplace",
   "version": "1.0.0",
-  "license": "UNLICENSED",
-  "private": true,
+  "license": "MIT",
   "scripts": {
     "build": "npx waffle",
     "test": "npm run build && NODE_ENV=test mocha",

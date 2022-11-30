@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.12;
 
 import "@openzeppelin/contracts/interfaces/IERC721.sol";
@@ -10,8 +10,8 @@ import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
- * @title Meta Store
- * @author Fancy Software <fancysoft.eth>
+ * @title Open Store
+ * @author Interplanetary Org
  *
  * Send ERC721 and ERC1155 tokens to this contract to list them for sale
  * (see {onERC721Received}, {onERC1155Received} and {onERC1155BatchReceived}).
@@ -28,7 +28,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  * Subsequent, that is, secondary, listings of the same token
  * for the same application will not require any seller approval.
  */
-contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
+contract OpenStore is IERC721Receiver, IERC1155Receiver, Ownable {
     /// An ERC721 or ERC1155 token configuration.
     struct NFT {
         address contract_;
@@ -169,7 +169,7 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
      * Emits {SetAppEnabled} event.
      */
     function setAppEnabled(address app, bool enabled) external onlyOwner {
-        require(isAppEnabled[app] != enabled, "MetaStore: already set");
+        require(isAppEnabled[app] != enabled, "OpenStore: already set");
         isAppEnabled[app] = enabled;
         emit SetAppEnabled(app, enabled);
     }
@@ -180,7 +180,7 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
      * Emits {SetAppActive} event.
      */
     function setAppActive(bool active) external {
-        require(isAppActive[msg.sender] != active, "MetaStore: already set");
+        require(isAppActive[msg.sender] != active, "OpenStore: already set");
         isAppActive[msg.sender] = active;
         emit SetAppActive(msg.sender, active);
     }
@@ -210,7 +210,7 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
     function setIsSellerApprovalRequired(bool required) external {
         require(
             isSellerApprovalRequired[msg.sender] != required,
-            "MetaStore: already set"
+            "OpenStore: already set"
         );
 
         isSellerApprovalRequired[msg.sender] = required;
@@ -224,7 +224,7 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
     function setSellerApproved(address seller, bool approved) external {
         require(
             _sellerApprovals[msg.sender][seller] != approved,
-            "MetaStore: already set"
+            "OpenStore: already set"
         );
 
         _sellerApprovals[msg.sender][seller] = approved;
@@ -255,7 +255,7 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
         address payable seller = config.seller;
         require(
             seller == operator || seller == from,
-            "MetaStore: invalid seller"
+            "OpenStore: invalid seller"
         );
 
         bytes32 listingId = _listingId(
@@ -299,7 +299,7 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
         address payable seller = config.seller;
         require(
             seller == operator || seller == from,
-            "MetaStore: invalid seller"
+            "OpenStore: invalid seller"
         );
 
         bytes32 listingId = _listingId(msg.sender, id, seller, config.app);
@@ -338,7 +338,7 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
         address payable seller = config.seller;
         require(
             seller == operator || seller == from,
-            "MetaStore: invalid seller"
+            "OpenStore: invalid seller"
         );
 
         for (uint256 i = 0; i < ids.length; i++) {
@@ -379,14 +379,14 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
     function purchase(bytes32 listingId, uint256 amount) external payable {
         Listing storage listing = _listings[listingId];
 
-        require(isAppEnabled[listing.app], "MetaStore: app not enabled");
-        require(isAppActive[listing.app], "MetaStore: app not active");
-        require(amount > 0, "MetaStore: amount must be positive");
-        require(listing.stockSize >= amount, "MetaStore: insufficient stock");
+        require(isAppEnabled[listing.app], "OpenStore: app not enabled");
+        require(isAppActive[listing.app], "OpenStore: app not active");
+        require(amount > 0, "OpenStore: amount must be positive");
+        require(listing.stockSize >= amount, "OpenStore: insufficient stock");
 
         require(
             listing.price * amount == msg.value,
-            "MetaStore: invalid value"
+            "OpenStore: invalid value"
         );
 
         unchecked {
@@ -492,9 +492,9 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
     function withdraw(bytes32 listingId, address to, uint256 amount) external {
         Listing storage listing = _listings[listingId];
 
-        require(listing.seller == msg.sender, "MetaStore: not the seller");
+        require(listing.seller == msg.sender, "OpenStore: not the seller");
 
-        require(listing.stockSize >= amount, "MetaStore: insufficient stock");
+        require(listing.stockSize >= amount, "OpenStore: insufficient stock");
 
         unchecked {
             listing.stockSize -= amount;
@@ -549,7 +549,7 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
         bytes32 listingId
     ) external view returns (Listing memory) {
         Listing memory listing = _listings[listingId];
-        require(listing.app != address(0), "MetaStore: not found");
+        require(listing.app != address(0), "OpenStore: not found");
         return listing;
     }
 
@@ -582,14 +582,14 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
         uint256 price,
         address payable app
     ) private {
-        require(isAppEnabled[app], "MetaStore: app not enabled");
-        require(isAppActive[app], "MetaStore: app not active");
+        require(isAppEnabled[app], "OpenStore: app not enabled");
+        require(isAppActive[app], "OpenStore: app not active");
 
         if (_primaryListingId[app][tokenContract][tokenId] == 0) {
             require(
                 !isSellerApprovalRequired[app] ||
                     isSellerApproved(app, seller),
-                "MetaStore: seller not approved"
+                "OpenStore: seller not approved"
             );
 
             _primaryListingId[app][tokenContract][tokenId] = listingId;
@@ -621,8 +621,8 @@ contract MetaStore is IERC721Receiver, IERC1155Receiver, Ownable {
         uint256 price,
         uint256 amount
     ) internal {
-        require(isAppEnabled[appAddress], "MetaStore: app not enabled");
-        require(isAppActive[appAddress], "MetaStore: app not active");
+        require(isAppEnabled[appAddress], "OpenStore: app not enabled");
+        require(isAppActive[appAddress], "OpenStore: app not active");
 
         _listings[listingId].stockSize += amount;
         _listings[listingId].price = price;
