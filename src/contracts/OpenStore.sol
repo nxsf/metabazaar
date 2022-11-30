@@ -63,12 +63,6 @@ contract OpenStore is IERC721Receiver, IERC1155Receiver, Ownable {
         uint256 stockSize;
     }
 
-    /// Emitted on {setAppEnabled}.
-    event SetAppEnabled(address indexed app, bool enabled);
-
-    /// Emitted on {setAppActive}.
-    event SetAppActive(address indexed app, bool active);
-
     /// Emitted on {setAppFee}.
     event SetAppFee(address indexed app, uint8 fee);
 
@@ -133,18 +127,6 @@ contract OpenStore is IERC721Receiver, IERC1155Receiver, Ownable {
     // Mapping from listing ID to its struct.
     mapping(bytes32 => Listing) _listings;
 
-    /**
-     * Return true if an application is enabled (controlled by the contract owner).
-     * A disabled application is not eligible for listing creation.
-     */
-    mapping(address => bool) public isAppEnabled;
-
-    /**
-     * Return true if an application is active (controlled by the application).
-     * An inactive application is not eligible for listing creation.
-     */
-    mapping(address => bool) public isAppActive;
-
     /// Get an application fee.
     mapping(address => uint8) public appFee;
 
@@ -162,28 +144,6 @@ contract OpenStore is IERC721Receiver, IERC1155Receiver, Ownable {
 
     // @dev app => (token contract => (token id => listing id)).
     mapping(address => mapping(address => mapping(uint256 => bytes32))) _primaryListingId;
-
-    /**
-     * Set whether an `app` is `enabled`.
-     * Only the contract {owner} may enable an application.
-     * Emits {SetAppEnabled} event.
-     */
-    function setAppEnabled(address app, bool enabled) external onlyOwner {
-        require(isAppEnabled[app] != enabled, "OpenStore: already set");
-        isAppEnabled[app] = enabled;
-        emit SetAppEnabled(app, enabled);
-    }
-
-    /**
-     * Set whether the caller application is `active`.
-     * Only the application itself may set its activity.
-     * Emits {SetAppActive} event.
-     */
-    function setAppActive(bool active) external {
-        require(isAppActive[msg.sender] != active, "OpenStore: already set");
-        isAppActive[msg.sender] = active;
-        emit SetAppActive(msg.sender, active);
-    }
 
     /**
      * Set the fee for the caller application, calculated as `fee / 255`.
@@ -379,8 +339,6 @@ contract OpenStore is IERC721Receiver, IERC1155Receiver, Ownable {
     function purchase(bytes32 listingId, uint256 amount) external payable {
         Listing storage listing = _listings[listingId];
 
-        require(isAppEnabled[listing.app], "OpenStore: app not enabled");
-        require(isAppActive[listing.app], "OpenStore: app not active");
         require(amount > 0, "OpenStore: amount must be positive");
         require(listing.stockSize >= amount, "OpenStore: insufficient stock");
 
@@ -582,9 +540,6 @@ contract OpenStore is IERC721Receiver, IERC1155Receiver, Ownable {
         uint256 price,
         address payable app
     ) private {
-        require(isAppEnabled[app], "OpenStore: app not enabled");
-        require(isAppActive[app], "OpenStore: app not active");
-
         if (_primaryListingId[app][tokenContract][tokenId] == 0) {
             require(
                 !isSellerApprovalRequired[app] ||
@@ -621,9 +576,6 @@ contract OpenStore is IERC721Receiver, IERC1155Receiver, Ownable {
         uint256 price,
         uint256 amount
     ) internal {
-        require(isAppEnabled[appAddress], "OpenStore: app not enabled");
-        require(isAppActive[appAddress], "OpenStore: app not active");
-
         _listings[listingId].stockSize += amount;
         _listings[listingId].price = price;
 

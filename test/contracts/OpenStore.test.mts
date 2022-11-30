@@ -30,7 +30,6 @@ use(solidity);
 
 describe("OpenStore", async () => {
   const [w0, w1, w2, app, owner] = new MockProvider().getWallets();
-  const BASE_FEE = 10;
 
   let erc1155Dummy: Erc1155Dummy;
   let openStore: OpenStore;
@@ -53,75 +52,15 @@ describe("OpenStore", async () => {
       await erc1155Dummy
         .connect(w0)
         .safeTransferFrom(w0.address, w1.address, 1, 40, []);
-    });
 
-    describe("when app is not enabled", () => {
-      it("should fail", async () => {
-        expect(await openStore.isAppEnabled(app.address)).to.be.false;
+      await expect(openStore.connect(app).setAppFee(5))
+        .to.emit(openStore, "SetAppFee")
+        .withArgs(app.address, 5);
+      expect(await openStore.appFee(app.address)).to.eq(5);
 
-        await expect(
-          erc1155Dummy
-            .connect(w1)
-            .safeTransferFrom(
-              w1.address,
-              openStore.address,
-              1,
-              10,
-              new ListingConfig(
-                w1.address,
-                app.address,
-                ethers.utils.parseEther("0.25")
-              ).toBytes()
-            )
-        ).to.be.revertedWith("OpenStore: app not enabled");
-      });
-
-      after(async () => {
-        await expect(openStore.setAppEnabled(app.address, true))
-          .to.emit(openStore, "SetAppEnabled")
-          .withArgs(app.address, true);
-        expect(await openStore.isAppEnabled(app.address)).to.be.true;
-      });
-    });
-
-    describe("when app is not active", () => {
-      it("should fail", async () => {
-        expect(await openStore.isAppActive(app.address)).to.be.false;
-
-        await expect(
-          erc1155Dummy
-            .connect(w1)
-            .safeTransferFrom(
-              w1.address,
-              openStore.address,
-              1,
-              10,
-              new ListingConfig(
-                w1.address,
-                app.address,
-                ethers.utils.parseEther("0.25")
-              ).toBytes()
-            )
-        ).to.be.revertedWith("OpenStore: app not active");
-      });
-
-      after(async () => {
-        await expect(openStore.connect(app).setAppActive(true))
-          .to.emit(openStore, "SetAppActive")
-          .withArgs(app.address, true);
-        expect(await openStore.isAppActive(app.address)).to.be.true;
-
-        await expect(openStore.connect(app).setAppFee(5))
-          .to.emit(openStore, "SetAppFee")
-          .withArgs(app.address, 5);
-        expect(await openStore.appFee(app.address)).to.eq(5);
-
-        await expect(openStore.connect(app).setIsSellerApprovalRequired(true))
-          .to.emit(openStore, "SetIsSellerApprovalRequired")
-          .withArgs(app.address, true);
-        expect(await openStore.isSellerApprovalRequired(app.address)).to.be
-          .true;
-      });
+      expect(await openStore.connect(app).setIsSellerApprovalRequired(true))
+        .to.emit(openStore, "SetIsSellerApprovalRequired")
+        .withArgs(app.address, true);
     });
 
     describe("when seller is not approved", () => {
@@ -340,39 +279,7 @@ describe("OpenStore", async () => {
   });
 
   describe("replenishing stock", () => {
-    describe("when app is inactive", () => {
-      before(async () => {
-        await expect(openStore.connect(app).setAppActive(false))
-          .to.emit(openStore, "SetAppActive")
-          .withArgs(app.address, false);
-      });
-
-      it("should fail", async () => {
-        await expect(
-          erc1155Dummy
-            .connect(w1)
-            .safeTransferFrom(
-              w1.address,
-              openStore.address,
-              1,
-              10,
-              new ListingConfig(
-                w1.address,
-                app.address,
-                ethers.utils.parseEther("0.35")
-              ).toBytes()
-            )
-        ).to.be.revertedWith("OpenStore: app not active");
-      });
-
-      after(async () => {
-        await expect(openStore.connect(app).setAppActive(true))
-          .to.emit(openStore, "SetAppActive")
-          .withArgs(app.address, true);
-      });
-    });
-
-    it("should replenish stock", async () => {
+    it("works", async () => {
       const _listingId = listingId(
         erc1155Dummy.address,
         1,
@@ -445,54 +352,6 @@ describe("OpenStore", async () => {
       expect(listingStockSizeAfter.stockSize).to.be.eq(
         listingStockSizeBefore.sub(8)
       );
-    });
-
-    describe("when app is disabled", () => {
-      before(async () => {
-        await openStore.connect(app).setAppActive(false);
-      });
-
-      it("should still work", async () => {
-        const _listingId = listingId(
-          erc1155Dummy.address,
-          1,
-          w1.address,
-          app.address
-        );
-
-        // w1 is seller.
-        const w1TokenBalanceBefore = await erc1155Dummy.balanceOf(
-          w1.address,
-          1
-        );
-
-        const listingStockSizeBefore = (await openStore.getListing(_listingId))
-          .stockSize;
-
-        await expect(openStore.connect(w1).withdraw(_listingId, w1.address, 7))
-          .to.emit(openStore, "Withdraw")
-          .withArgs(
-            [erc1155Dummy.address, 1],
-            app.address,
-            _listingId,
-            w1.address,
-            7
-          );
-
-        // w1 token balance should increase by 7.
-        const w1TokenBalanceAfter = await erc1155Dummy.balanceOf(w1.address, 1);
-        expect(w1TokenBalanceAfter).to.be.eq(w1TokenBalanceBefore.add(7));
-
-        // listing stock size should decrease by 7.
-        const listingStockSizeAfter = await openStore.getListing(_listingId);
-        expect(listingStockSizeAfter.stockSize).to.be.eq(
-          listingStockSizeBefore.sub(7)
-        );
-      });
-
-      after(async () => {
-        await openStore.connect(app).setAppActive(true);
-      });
     });
   });
 });
