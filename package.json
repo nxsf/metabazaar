@@ -1,5 +1,14 @@
 {
-  "name": "interplanetary-marketplace",
+  "name": "metabazaar",
+  "author": {
+    "name": "Onyx Software Foundation",
+    "url": "http://nxsf.org",
+    "email": "mail@nxsf.org"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nxsf/metabazaar.git"
+  },
   "version": "1.0.0",
   "license": "MIT",
   "scripts": {

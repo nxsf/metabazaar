@@ -1,3 +1,5 @@
+# Metabazaar
+
 ## OpenStore
 
 1. Set application fee (`setAppFee(10)`)
