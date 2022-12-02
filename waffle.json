@@ -1,5 +1,6 @@
 {
-  "compilerType": "native",
+  "compilerType": "solcjs",
+  "compilerVersion": "0.8.12",
   "sourceDirectory": "./src/contracts",
   "outputDirectory": "./waffle",
   "typechainEnabled": true
