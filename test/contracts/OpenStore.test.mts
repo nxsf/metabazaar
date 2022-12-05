@@ -362,6 +362,39 @@ describe("OpenStore", async () => {
       );
     });
   });
+
+  describe("promoting", () => {
+    it("works", async () => {
+      const _listingId = listingId(
+        erc1155Dummy.address,
+        1,
+        w1.address,
+        app.address
+      );
+
+      // app receives the promotion fee.
+      const appBalanceBefore = await app.getBalance();
+
+      await expect(
+        openStore.connect(w1).promote(_listingId, {
+          value: ethers.utils.parseEther("0.1"),
+        })
+      )
+        .to.emit(openStore, "Promote")
+        .withArgs(
+          [erc1155Dummy.address, 1],
+          _listingId,
+          app.address,
+          ethers.utils.parseEther("0.1")
+        );
+
+      // app balance should increase by promotion fee.
+      const appBalanceAfter = await app.getBalance();
+      expect(appBalanceAfter).to.be.eq(
+        appBalanceBefore.add(ethers.utils.parseEther("0.1"))
+      );
+    });
+  });
 });
 
 function listingId(

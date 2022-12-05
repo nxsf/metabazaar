@@ -26,6 +26,8 @@ import "@openzeppelin/contracts/utils/Context.sol";
  * of a particular token for a particular application (see {primaryListingId}).
  * Subsequent, that is, secondary, listings of the same token
  * for the same application will not require any seller approval.
+ *
+ * A listing may be {promote}d, which should increase its visibility.
  */
 contract OpenStore is IERC721Receiver, IERC1155Receiver {
     /// An ERC721 or ERC1155 token configuration.
@@ -117,6 +119,14 @@ contract OpenStore is IERC721Receiver, IERC1155Receiver {
         address indexed appAddress,
         uint256 appFee,
         uint256 profit
+    );
+
+    /// Emitted when a listing is {promote}d.
+    event Promote(
+        NFT token, // ADHOC: Excessive information.
+        bytes32 indexed listingId,
+        address indexed appAddress,
+        uint256 appFee
     );
 
     // Mapping from listing ID to its struct.
@@ -469,6 +479,22 @@ contract OpenStore is IERC721Receiver, IERC1155Receiver {
         }
 
         emit Withdraw(listing.token, listing.app, listingId, to, amount);
+    }
+
+    /**
+     * Promote a listing by paying a fee.
+     * All of the message value is immediately sent to the listing application.
+     * A highly promoted token is expected to be rendered more prominently.
+     */
+    function promote(bytes32 listingId) external payable {
+        Listing storage listing = _listings[listingId];
+
+        require(listing.app != address(0), "OpenStore: listing not found");
+        require(msg.value > 0, "OpenStore: value must be positive");
+
+        listing.app.transfer(msg.value);
+
+        emit Promote(listing.token, listingId, listing.app, msg.value);
     }
 
     /**
