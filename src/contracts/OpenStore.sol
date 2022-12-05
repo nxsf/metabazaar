@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/utils/Context.sol";
 
 /**
  * @title Open Store
- * @author Interplanetary Org
+ * @author Onyx Software Foundation <nxsf.org>
  *
  * Send ERC721 and ERC1155 tokens to this contract to list them for sale
  * (see {onERC721Received}, {onERC1155Received} and {onERC1155BatchReceived}).
