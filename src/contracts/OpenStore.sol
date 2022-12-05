@@ -16,11 +16,11 @@ import "@openzeppelin/contracts/utils/Context.sol";
  * (see {onERC721Received}, {onERC1155Received} and {onERC1155BatchReceived}).
  *
  * A listing has its target application, which is responsible for rendering
- * the listing in some sort of UI. An application must be explicitly
- * {isAppEnabled} and {isAppActive} for new listings to be created for it,
- * as well as existing listings to be purchased and replenished.
+ * the listing in some sort of UI. An application fee must be explicitly set
+ * with a {setAppFee} call for new listings to be created for it.
+ * Once set, an application fee is immutable.
  *
- * An app may {setIsSellerApprovalRequired}.
+ * An app may {setIsSellerApprovalRequired} (default: false).
  * In that case, a seller must be explicitly set {isSellerApproved},
  * which is however only required for the first (hence primary) listing
  * of a particular token for a particular application (see {primaryListingId}).
@@ -66,7 +66,7 @@ contract OpenStore is IERC721Receiver, IERC1155Receiver {
     event SetAppFee(address indexed app, uint8 fee);
 
     /// Emitted on {setIsSellerApprovalRequired}.
-    event SetIsSellerApprovalRequired(address indexed app, bool required);
+    event SetIsSellerApprovalRequired(address indexed app);
 
     /// Emitted on {setSellerApproved}.
     event SetSellerApproved(
@@ -136,32 +136,43 @@ contract OpenStore is IERC721Receiver, IERC1155Receiver {
 
     /**
      * Set the fee for the caller application, calculated as `fee / 255`.
+     * This function effectively activates the application.
+     * Once set, the fee cannot be changed.
      * Emits {SetAppFee} event.
      */
     function setAppFee(uint8 fee) external {
+        require(appFee[msg.sender] == 0, "OpenStore: already set");
         appFee[msg.sender] = fee;
         emit SetAppFee(msg.sender, fee);
     }
 
     /**
-     * Set whether a seller approval is required for the caller application.
+     * Set whether an explicit seller approval is required
+     * for the caller application.
+     * Once set, the requirement cannot be changed.
      * Emits {SetIsSellerApprovalRequired} event.
      */
-    function setIsSellerApprovalRequired(bool required) external {
+    function setIsSellerApprovalRequired() external {
         require(
-            isSellerApprovalRequired[msg.sender] != required,
+            !isSellerApprovalRequired[msg.sender],
             "OpenStore: already set"
         );
 
-        isSellerApprovalRequired[msg.sender] = required;
-        emit SetIsSellerApprovalRequired(msg.sender, required);
+        isSellerApprovalRequired[msg.sender] = true;
+        emit SetIsSellerApprovalRequired(msg.sender);
     }
 
     /**
      * Set whether `seller` is approved for the caller application.
+     * Requires {isSellerApprovalRequired} to be set for the caller application.
      * Emits {SetSellerApproved}.
      */
     function setSellerApproved(address seller, bool approved) external {
+        require(
+            isSellerApprovalRequired[msg.sender],
+            "OpenStore: not required"
+        );
+
         require(
             _sellerApprovals[msg.sender][seller] != approved,
             "OpenStore: already set"
@@ -512,6 +523,8 @@ contract OpenStore is IERC721Receiver, IERC1155Receiver {
         uint256 price,
         address payable app
     ) private {
+        require(appFee[app] > 0, "OpenStore: app not active");
+
         if (_primaryListingId[app][tokenContract][tokenId] == 0) {
             require(
                 !isSellerApprovalRequired[app] ||

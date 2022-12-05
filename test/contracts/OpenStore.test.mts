@@ -52,18 +52,42 @@ describe("OpenStore", async () => {
       await erc1155Dummy
         .connect(w0)
         .safeTransferFrom(w0.address, w1.address, 1, 40, []);
+    });
 
-      await expect(openStore.connect(app).setAppFee(5))
-        .to.emit(openStore, "SetAppFee")
-        .withArgs(app.address, 5);
-      expect(await openStore.appFee(app.address)).to.eq(5);
+    describe("when app is not active", () => {
+      it("should fail", async () => {
+        await expect(
+          erc1155Dummy
+            .connect(w1)
+            .safeTransferFrom(
+              w1.address,
+              openStore.address,
+              1,
+              10,
+              new ListingConfig(
+                w1.address,
+                app.address,
+                ethers.utils.parseEther("0.25")
+              ).toBytes()
+            )
+        ).to.be.revertedWith("OpenStore: app not active");
+      });
 
-      expect(await openStore.connect(app).setIsSellerApprovalRequired(true))
-        .to.emit(openStore, "SetIsSellerApprovalRequired")
-        .withArgs(app.address, true);
+      after(async () => {
+        await expect(openStore.connect(app).setAppFee(5))
+          .to.emit(openStore, "SetAppFee")
+          .withArgs(app.address, 5);
+        expect(await openStore.appFee(app.address)).to.eq(5);
+      });
     });
 
     describe("when seller is not approved", () => {
+      before(async () => {
+        expect(await openStore.connect(app).setIsSellerApprovalRequired())
+          .to.emit(openStore, "SetIsSellerApprovalRequired")
+          .withArgs(app.address);
+      });
+
       it("should fail", async () => {
         expect(await openStore.isSellerApproved(app.address, w1.address)).to.be
           .false;
